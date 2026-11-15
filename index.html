@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Calculadora de posición verdadera (GD&amp;T) en 2D y para barrenos inclinados en 3D, con el cálculo paso a paso.">
+<title>Calculadora de Posición Verdadera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Concepto: hoja de cálculo de metrología. Entradas a la izquierda, cálculo paso a paso y resultado a la derecha, fórmulas abajo. */
+:root {
+  --bg: #0b1424;
+  --surface: #111e36;
+  --field: #0d192d;
+  --line: #213456;
+  --fg: #e6ecf5;
+  --muted: #98a8c2;
+  --accent: #22d3ee;
+  --warm: #f97316;
+  --ok: #34d399;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f4f7fb; --surface: #ffffff; --field: #f4f7fb; --line: #d3deec; --fg: #0f1a2e; --muted: #50617c;
+    --accent: #0a7790; --warm: #b84a06; --ok: #0a7a52; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f4f7fb; --surface: #ffffff; --field: #f4f7fb; --line: #d3deec; --fg: #0f1a2e; --muted: #50617c;
+  --accent: #0a7790; --warm: #b84a06; --ok: #0a7a52; color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+/* Base para documento independiente */
+body { margin: 0; }
+[hidden] { display: none !important; }
+
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+}
+.wrap { max-width: 1040px; margin-inline: auto; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; line-height: 1.15; text-wrap: balance; }
+.label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0; }
+
+header.top { padding-block: 36px 24px; display: grid; gap: 10px; }
+header.top h1 { font-size: clamp(30px, 5.5vw, 46px); font-weight: 700; letter-spacing: -0.02em; }
+header.top p.sub { margin: 0; color: var(--muted); max-width: 62ch; }
+
+.app { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 20px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 22px; min-width: 0; }
+
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset + fieldset { margin-top: 22px; padding-top: 20px; border-top: 1px dashed var(--line); }
+legend { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); padding: 0; margin-bottom: 12px; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+.col { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.col + .col { padding-left: 20px; border-left: 1px dashed var(--line); }
+.colhead { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--fg); }
+.f { display: grid; gap: 5px; min-width: 0; }
+.f label { font-size: 13px; color: var(--muted); }
+.f input {
+  width: 100%; background: var(--field); color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 9px 10px; font-family: var(--font-mono); font-size: 15px;
+}
+.f input:hover { border-color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 18px; max-width: 100%; }
+.seg button { background: transparent; color: var(--muted); border: 0; padding: 9px 16px; font: 500 14px var(--font-body); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #06121f; }
+.hint { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+.actions { margin-top: 22px; }
+.btn { background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; font: 500 14px var(--font-body); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+
+/* Resultado */
+.fcf { display: inline-flex; border: 1.5px solid var(--fg); font-family: var(--font-mono); font-size: 17px; max-width: 100%; }
+.fcf > span { padding: 8px 14px; display: flex; align-items: center; justify-content: center; }
+.fcf > span + span { border-left: 1.5px solid var(--fg); }
+.fcf svg { width: 22px; height: 22px; stroke: var(--fg); fill: none; stroke-width: 1.6; }
+.fcf .tol { color: var(--warm); font-weight: 500; }
+.verdict { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; margin-top: 20px; }
+.verdict .state { font-family: var(--font-display); font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
+.verdict .state.ok { color: var(--ok); }
+.verdict .state.bad { color: var(--warm); }
+.verdict .cmp { font-family: var(--font-mono); font-size: 15px; color: var(--muted); }
+.bar { height: 8px; border-radius: 4px; background: var(--field); border: 1px solid var(--line); margin-top: 14px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--ok); width: 0; }
+.bar.bad i { background: var(--warm); }
+.usage { font-size: 13px; color: var(--muted); margin: 6px 0 0; font-family: var(--font-mono); }
+
+.steps { list-style: none; margin: 20px 0 0; padding: 16px 0 0; border-top: 1px dashed var(--line); display: grid; gap: 12px; }
+.steps li { display: grid; gap: 2px; }
+.steps .sl { font-size: 13px; color: var(--muted); }
+.steps .sv { font-family: var(--font-mono); font-size: 14.5px; overflow-wrap: anywhere; }
+.steps .sv b { color: var(--accent); font-weight: 500; }
+.res { display: grid; gap: 8px; margin: 16px 0 0; padding-top: 16px; border-top: 1px dashed var(--line); font-size: 14px; }
+.res div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; }
+.res dt { color: var(--muted); }
+.res dd { margin: 0; font-family: var(--font-mono); text-align: right; }
+
+.plotbox { display: grid; justify-items: center; gap: 6px; margin: 20px 0 0; }
+.plotbox svg { width: 100%; max-width: 340px; height: auto; }
+.plotbox figcaption { font-size: 13px; color: var(--muted); text-align: center; }
+svg .ax { stroke: var(--line); stroke-width: 1; }
+svg .z-allowed { fill: var(--accent); fill-opacity: 0.1; stroke: var(--accent); stroke-width: 1.5; }
+svg .lead { stroke: var(--muted); stroke-width: 1; }
+svg .pt { stroke: var(--bg); stroke-width: 2; }
+svg .pt.ok { fill: var(--ok); }
+svg .pt.bad { fill: var(--warm); }
+svg text { font-family: var(--font-mono); font-size: 11px; fill: var(--muted); }
+
+.method { margin-top: 20px; }
+.method h2 { font-size: 24px; margin-bottom: 14px; }
+.method .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.method .panel h3 { font-size: 16px; margin-bottom: 10px; }
+.method pre { margin: 0 0 10px; padding: 10px 12px; background: var(--field); border: 1px solid var(--line); border-radius: 6px; font-family: var(--font-mono); font-size: 13px; line-height: 1.6; overflow-x: auto; }
+.method p { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+footer { margin-top: 28px; padding-block: 22px 40px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+footer a { color: var(--accent); }
+
+@media (max-width: 820px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <p class="label">Metrología · GD&amp;T</p>
+    <h1>Calculadora de posición verdadera</h1>
+    <p class="sub">Calcula la posición verdadera de una característica en el plano XY y de un barreno inclinado en 3D, con el cálculo paso a paso. Todas las medidas en milímetros. Los valores iniciales son de ejemplo.</p>
+  </header>
+
+  <main>
+    <form id="calc" class="app" autocomplete="off" onsubmit="return false">
+      <div class="panel">
+        <div class="seg" role="group" aria-label="Modo de cálculo">
+          <button type="button" id="m2d" aria-pressed="true">Posición 2D</button>
+          <button type="button" id="m3d" aria-pressed="false">Barreno inclinado 3D</button>
+        </div>
+
+        <fieldset id="in2d">
+          <legend>Datos de entrada</legend>
+          <div class="pair">
+            <div class="col"><p class="colhead">Nominal</p>
+              <div class="f"><label for="x2n">X</label><input id="x2n" type="number" step="any" inputmode="decimal" value="25.000"></div>
+              <div class="f"><label for="y2n">Y</label><input id="y2n" type="number" step="any" inputmode="decimal" value="40.000"></div>
+            </div>
+            <div class="col"><p class="colhead">Medido</p>
+              <div class="f"><label for="x2m">X</label><input id="x2m" type="number" step="any" inputmode="decimal" value="25.018"></div>
+              <div class="f"><label for="y2m">Y</label><input id="y2m" type="number" step="any" inputmode="decimal" value="39.985"></div>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset id="in3d" hidden>
+          <legend>Datos de entrada</legend>
+          <div class="pair">
+            <div class="col"><p class="colhead">Nominal</p>
+              <div class="f"><label for="xn">X</label><input id="xn" type="number" step="any" inputmode="decimal" value="0.000"></div>
+              <div class="f"><label for="yn">Y</label><input id="yn" type="number" step="any" inputmode="decimal" value="0.000"></div>
+              <div class="f"><label for="zn">Z</label><input id="zn" type="number" step="any" inputmode="decimal" value="0.000"></div>
+            </div>
+            <div class="col"><p class="colhead">Medido</p>
+              <div class="f"><label for="xm">X</label><input id="xm" type="number" step="any" inputmode="decimal" value="0.020"></div>
+              <div class="f"><label for="ym">Y</label><input id="ym" type="number" step="any" inputmode="decimal" value="0.010"></div>
+              <div class="f"><label for="zm">Z</label><input id="zm" type="number" step="any" inputmode="decimal" value="-0.100"></div>
+            </div>
+          </div>
+          <div class="f" style="margin-top:14px"><label for="alpha">Ángulo de inclinación θ, desde Z (°)</label><input id="alpha" type="number" step="any" inputmode="decimal" value="18"></div>
+          <p class="hint">Plano de inclinación XZ: el eje del barreno forma el ángulo θ con Z y se inclina hacia X, así que I = sin θ, J = 0 y K = cos θ.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Tolerancia</legend>
+          <div class="f"><label for="tol">Tolerancia de posición Ø (mm)</label><input id="tol" type="number" step="any" inputmode="decimal" value="0.080"></div>
+        </fieldset>
+
+        <div class="actions"><button type="button" class="btn" id="reset">Restablecer ejemplo</button></div>
+      </div>
+
+      <div class="panel" aria-live="polite">
+        <div class="fcf" id="fcf" role="img" aria-label="Marco de tolerancia de posición"></div>
+        <div class="verdict"><span class="state" id="state">—</span><span class="cmp" id="cmp"></span></div>
+        <div class="bar" id="bar"><i></i></div>
+        <p class="usage" id="usage"></p>
+        <ol class="steps" id="steps"></ol>
+        <dl class="res" id="res"></dl>
+        <figure class="plotbox">
+          <svg id="plot" viewBox="0 0 320 320" role="img" aria-label="Zona de tolerancia y posición del eje"></svg>
+          <figcaption id="plotcap"></figcaption>
+        </figure>
+      </div>
+    </form>
+
+    <section class="method">
+      <h2>Fórmulas</h2>
+      <div class="cols">
+        <div class="panel">
+          <h3>Posición en 2D</h3>
+<pre>ΔX = X medido − X nominal
+ΔY = Y medido − Y nominal
+TP = 2 · √(ΔX² + ΔY²)</pre>
+          <p>La zona de tolerancia es un círculo de diámetro igual a la tolerancia. La pieza cumple si TP no supera la tolerancia.</p>
+        </div>
+        <div class="panel">
+          <h3>Barreno inclinado en 3D</h3>
+<pre>Paso 1  ΔX, ΔY, ΔZ = medido − nominal
+Paso 2  I = sin θ   J = 0   K = cos θ
+Paso 3  d = ΔX·I + ΔY·J + ΔZ·K
+Paso 4  ΔX⊥ = ΔX − d·I
+        ΔY⊥ = ΔY − d·J
+        ΔZ⊥ = ΔZ − d·K
+Paso 5  TP = 2 · √(ΔX⊥² + ΔY⊥² + ΔZ⊥²)</pre>
+          <p>Solo cuenta la parte del error perpendicular al eje. El error axial d es de profundidad y no cambia la posición. Por eso un error de 0.100 en Z en un eje de 18° solo aporta cerca de 0.031 al radio de la zona.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Herramienta educativa con datos de ejemplo. Antes de usarla para aceptar o rechazar piezas, compara el resultado con tu procedimiento y con la norma ASME Y14.5 vigente.</span>
+    <span>Hecho por Aaron Mireles · <a href="https://github.com/Aaron-Mireles21" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var mode = "2d";
+
+  function val(id) { var v = parseFloat($(id).value); return isFinite(v) ? v : NaN; }
+  function f(v, d) { return isFinite(v) ? v.toFixed(d === undefined ? 3 : d) : "—"; }
+  function sf(v, d) { if (!isFinite(v)) return "—"; var s = v.toFixed(d === undefined ? 3 : d); return (v > 0 ? "+" : "") + s; }
+  function rad(g) { return g * Math.PI / 180; }
+
+  function fcfHTML(tol) {
+    var sym = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6"/><path d="M12 2v20M2 12h20"/></svg>';
+    return "<span>" + sym + '</span><span class="tol">Ø' + f(tol) + "</span><span>A</span><span>B</span>";
+  }
+
+  function plot(p1, p2, tol, ok, labels) {
+    var c = 160, rMax = Math.max(tol / 2, Math.hypot(p1, p2), 1e-6) * 1.2;
+    var s = 135 / rMax;
+    var rA = (tol / 2) * s;
+    var px = c + p1 * s, py = c - p2 * s;
+    var out = "";
+    out += '<line class="ax" x1="10" y1="160" x2="310" y2="160"/><line class="ax" x1="160" y1="10" x2="160" y2="310"/>';
+    out += '<circle class="z-allowed" cx="160" cy="160" r="' + rA.toFixed(2) + '"/>';
+    out += '<line class="lead" x1="160" y1="160" x2="' + px.toFixed(2) + '" y2="' + py.toFixed(2) + '"/>';
+    out += '<circle class="pt ' + (ok ? "ok" : "bad") + '" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="6"/>';
+    out += '<text x="306" y="154" text-anchor="end">' + labels[0] + "</text>";
+    out += '<text x="166" y="22">' + labels[1] + "</text>";
+    out += '<text x="' + (160 + rA * 0.72).toFixed(1) + '" y="' + (160 + rA * 0.72 + 14).toFixed(1) + '">r ' + f(tol / 2) + "</text>";
+    $("plot").innerHTML = out;
+  }
+
+  function stepsHTML(list) {
+    return list.map(function (s) { return '<li><span class="sl">' + s[0] + '</span><span class="sv">' + s[1] + "</span></li>"; }).join("");
+  }
+
+  function setMode(m) {
+    mode = m;
+    $("m2d").setAttribute("aria-pressed", m === "2d");
+    $("m3d").setAttribute("aria-pressed", m === "3d");
+    $("in2d").hidden = m !== "2d";
+    $("in3d").hidden = m !== "3d";
+    update();
+  }
+
+  function update() {
+    var tol = val("tol");
+    var tp, p1, p2, steps, labels, cap;
+
+    if (mode === "2d") {
+      var dx = val("x2m") - val("x2n"), dy = val("y2m") - val("y2n");
+      tp = 2 * Math.hypot(dx, dy); p1 = dx; p2 = dy;
+      steps = [
+        ["Paso 1 · Desviaciones (medido − nominal)", "ΔX = <b>" + sf(dx) + "</b> · ΔY = <b>" + sf(dy) + "</b>"],
+        ["Paso 2 · TP = 2 × √(ΔX² + ΔY²)", "TP = <b>" + f(tp) + "</b>"]
+      ];
+      labels = ["X", "Y"]; cap = "Vista en el plano XY. El punto es la posición medida respecto al nominal.";
+    } else {
+      var th = val("alpha");
+      var DX = val("xm") - val("xn"), DY = val("ym") - val("yn"), DZ = val("zm") - val("zn");
+      var I = Math.sin(rad(th)), J = 0, K = Math.cos(rad(th));
+      var d = DX * I + DY * J + DZ * K;
+      var PX = DX - d * I, PY = DY - d * J, PZ = DZ - d * K;
+      tp = 2 * Math.sqrt(PX * PX + PY * PY + PZ * PZ);
+      p1 = PY; p2 = -DX * K + DZ * I;
+      steps = [
+        ["Paso 1 · Desviaciones brutas (medido − nominal)", "ΔX = <b>" + sf(DX) + "</b> · ΔY = <b>" + sf(DY) + "</b> · ΔZ = <b>" + sf(DZ) + "</b>"],
+        ["Paso 2 · Vector unitario del eje, θ = " + f(th, 1) + "°", "I = <b>" + f(I, 4) + "</b> · J = <b>0</b> · K = <b>" + f(K, 4) + "</b>"],
+        ["Paso 3 · Error axial d = ΔX·I + ΔY·J + ΔZ·K", "d = <b>" + sf(d) + "</b> · error de profundidad, no es TP"],
+        ["Paso 4 · Desviaciones perpendiculares al eje", "ΔX⊥ = <b>" + sf(PX) + "</b> · ΔY⊥ = <b>" + sf(PY) + "</b> · ΔZ⊥ = <b>" + sf(PZ) + "</b>"],
+        ["Paso 5 · TP = 2 × √(ΔX⊥² + ΔY⊥² + ΔZ⊥²)", "TP = <b>" + f(tp) + "</b>"]
+      ];
+      labels = ["⊥ en XZ", "Y"]; cap = "Sección perpendicular al eje del barreno. Un eje es Y y el otro está en el plano XZ.";
+    }
+
+    $("fcf").innerHTML = fcfHTML(tol);
+    var valid = isFinite(tp) && isFinite(tol);
+    var ok = valid && tp <= tol + 1e-9;
+
+    var st = $("state"), bar = $("bar");
+    if (!valid) {
+      st.textContent = "Faltan datos"; st.className = "state"; $("cmp").textContent = ""; $("usage").textContent = "";
+      bar.className = "bar"; bar.firstElementChild.style.width = "0";
+    } else {
+      st.textContent = ok ? "Cumple" : "No cumple"; st.className = "state " + (ok ? "ok" : "bad");
+      $("cmp").textContent = "TP " + f(tp) + (ok ? " ≤ " : " > ") + f(tol) + " de tolerancia";
+      var pct = tol > 0 ? tp / tol * 100 : Infinity;
+      $("usage").textContent = "Uso de la zona: " + (isFinite(pct) ? pct.toFixed(0) + " %" : "—");
+      bar.className = "bar" + (ok ? "" : " bad");
+      bar.firstElementChild.style.width = Math.min(100, isFinite(pct) ? pct : 100) + "%";
+    }
+
+    $("steps").innerHTML = stepsHTML(steps);
+    $("res").innerHTML = [
+      ["Tolerancia Ø", f(tol)],
+      ["TP calculada Ø", f(tp)],
+      ["Desviación vs tolerancia", sf(tp - tol)]
+    ].map(function (r) { return "<div><dt>" + r[0] + "</dt><dd>" + r[1] + "</dd></div>"; }).join("");
+
+    if (valid) plot(p1, p2, tol, ok, labels);
+    else $("plot").innerHTML = "";
+    $("plotcap").textContent = cap;
+  }
+
+  $("calc").addEventListener("input", update);
+  $("m2d").addEventListener("click", function () { setMode("2d"); });
+  $("m3d").addEventListener("click", function () { setMode("3d"); });
+  $("reset").addEventListener("click", function () { $("calc").reset(); setTimeout(update, 0); });
+  update();
+})();
+</script>
+</body>
+</html>
