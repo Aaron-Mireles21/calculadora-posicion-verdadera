@@ -65,7 +65,7 @@ Los valores que trae la página al abrirla son inventados.
 
 ## Cómo usarla
 
-Abre la versión publicada: **[ENLACE A GITHUB PAGES]**
+Abre la versión publicada: **[Calculadora de posición verdadera](https://aaron-mireles21.github.io/calculadora-posicion-verdadera/)**
 
 O úsala en tu computadora: descarga `index.html` y ábrelo en cualquier navegador. No necesita servidor ni instalación.
 
